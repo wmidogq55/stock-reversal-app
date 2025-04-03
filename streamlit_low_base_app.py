@@ -1,4 +1,19 @@
 
+import io
+
+if not filtered_stocks_df.empty:
+    excel_file = io.BytesIO()
+    with pd.ExcelWriter(excel_file, engine='xlsxwriter') as writer:
+        filtered_stocks_df.to_excel(writer, index=False, sheet_name='選股結果')
+
+    excel_file.seek(0)
+    st.download_button(
+        label="📥 下載選股結果 Excel",
+        data=excel_file,
+        file_name='reversal_stock_selection.xlsx',
+        mime='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+    )
+
 import streamlit as st
 import yfinance as yf
 import pandas as pd
