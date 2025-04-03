@@ -1,24 +1,9 @@
-
-import io
-
-if not filtered_stocks_df.empty:
-    excel_file = io.BytesIO()
-    with pd.ExcelWriter(excel_file, engine='xlsxwriter') as writer:
-        filtered_stocks_df.to_excel(writer, index=False, sheet_name='選股結果')
-
-    excel_file.seek(0)
-    st.download_button(
-        label="📥 下載選股結果 Excel",
-        data=excel_file,
-        file_name='reversal_stock_selection.xlsx',
-        mime='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
-    )
-
 import streamlit as st
 import yfinance as yf
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
+import io
 
 def add_indicators(df):
     df['MA20'] = df['Close'].rolling(window=20).mean()
@@ -41,9 +26,9 @@ def add_indicators(df):
     return df
 
 def filter_low_base_reversal(df):
-    latest = df.iloc[-1]
-    previous = df.iloc[-2]
     try:
+        latest = df.iloc[-1]
+        previous = df.iloc[-2]
         cond_rsi = latest['RSI'] < 30
         cond_macd_cross = latest['MACD'] > latest['Signal'] and previous['MACD'] <= previous['Signal']
         cond_ma20 = latest['Close'] > latest['MA20'] and latest['MA20_slope'] > 0
@@ -74,16 +59,24 @@ def main():
 
         if qualified_stocks:
             st.success(f"✅ 符合條件的股票：{', '.join(qualified_stocks)}")
-            with pd.ExcelWriter("選股結果.xlsx") as writer:
+
+            # 建立 Excel 下載
+            excel_file = io.BytesIO()
+            with pd.ExcelWriter(excel_file, engine='xlsxwriter') as writer:
                 for ticker in qualified_stocks:
                     result_data[ticker].to_excel(writer, sheet_name=ticker)
+            excel_file.seek(0)
+            st.download_button(
+                label="📥 下載選股結果 Excel",
+                data=excel_file,
+                file_name="選股結果.xlsx",
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+            )
 
-            with open("選股結果.xlsx", "rb") as f:
-                st.download_button("📥 下載選股結果 Excel", f, file_name="選股結果.xlsx")
-
+            # 顯示指標圖
             for ticker in qualified_stocks:
                 df = result_data[ticker]
-                st.subheader(f"📊 {ticker} 指標圖")
+                st.subheader(f"📊 {ticker} 技術指標圖")
                 st.line_chart(df[['Close', 'MA20']])
                 st.line_chart(df[['RSI']])
                 st.line_chart(df[['MACD', 'Signal']])
