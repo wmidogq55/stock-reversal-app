@@ -3,7 +3,6 @@ import pandas as pd
 import yfinance as yf
 from datetime import datetime
 import requests
-import io
 
 st.set_page_config(page_title="低基期 + 反轉上升選股模型", layout="centered")
 st.title("📈 低基期 + 反轉上升選股模型")
@@ -55,6 +54,8 @@ def rsi(df, period=14):
     return 100 - (100 / (1 + rs))
 
 def kd(df, n=9, m1=3, m2=3):
+    if 'Low' not in df or 'High' not in df or 'Close' not in df:
+        return pd.Series(dtype="float64"), pd.Series(dtype="float64")
     low_min = df['Low'].rolling(n).min()
     high_max = df['High'].rolling(n).max()
     rsv = (df['Close'] - low_min) / (high_max - low_min) * 100
@@ -69,6 +70,9 @@ def evaluate_stock(symbol, is_tw):
     df["RSI"] = rsi(df)
     df["MA20"] = df["Close"].rolling(20).mean()
     df["K"], df["D"] = kd(df)
+
+    if df["K"].isna().all() or df["D"].isna().all():
+        return None
 
     rsi_last = df["RSI"].iloc[-1]
     kd_cross = df["K"].iloc[-1] > df["D"].iloc[-1] and df["K"].iloc[-2] < df["D"].iloc[-2]
