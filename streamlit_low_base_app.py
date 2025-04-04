@@ -1,68 +1,59 @@
 
 import streamlit as st
-import yfinance as yf
 import pandas as pd
-import matplotlib.pyplot as plt
+import yfinance as yf
+from datetime import datetime
 
-# 標題
-st.set_page_config(layout="wide")
+st.set_page_config(page_title="低基期 + 反轉上升選股模型", layout="wide")
+
 st.title("📈 低基期 + 反轉上升選股模型")
+st.caption("支援 台股/美股選擇 + 自動判別 + 匯出 Excel")
 
-# 日期選擇
-start_date = st.date_input("選擇起始日期", pd.to_datetime("2023-01-01"))
-end_date = st.date_input("選擇結束日期", pd.to_datetime("2025-04-03"))
+st.subheader("選擇起始日期")
+start_date = st.text_input("選擇起始日期", "2023/01/01")
 
-# 自動掃描美股 S&P 500 標的
-sp500_symbols = ["AAPL", "TSLA", "MSFT", "GOOGL", "META", "NVDA"]
+st.subheader("選擇結束日期")
+end_date = st.text_input("選擇結束日期", datetime.now().strftime("%Y/%m/%d"))
 
-@st.cache_data
-def get_stock_data(symbol, start, end):
-    data = yf.download(symbol, start=start, end=end)
-    return data
+st.subheader("輸入股票代號（以逗號分隔）")
+symbol_input = st.text_input("例如：TSLA,AAPL,2330,2317", "TSLA,AAPL")
 
-def calculate_indicators(df):
-    df["RSI"] = df["Close"].rolling(window=14).mean()
-    df["MACD"] = df["Close"].ewm(span=12).mean() - df["Close"].ewm(span=26).mean()
-    df["Signal"] = df["MACD"].ewm(span=9).mean()
-    return df
+def fetch_stock_data(symbol, start, end):
+    try:
+        data = yf.download(symbol, start=start, end=end)
+        return data
+    except Exception as e:
+        return None
 
-st.subheader("符合條件的標的（示意）")
+def is_low_base_reversal(df):
+    try:
+        if df is None or df.empty:
+            return False
+        df['MA20'] = df['Close'].rolling(window=20).mean()
+        recent_close = df['Close'].iloc[-1]
+        recent_ma20 = df['MA20'].iloc[-1]
+        prev_close = df['Close'].iloc[-2]
+        if prev_close < recent_ma20 and recent_close > recent_ma20:
+            return True
+    except:
+        return False
+    return False
 
-results = []
-for symbol in sp500_symbols:
-    df = get_stock_data(symbol, start_date, end_date)
-    if df.empty:
-        continue
-    df = calculate_indicators(df)
-    latest_rsi = df["RSI"].iloc[-1]
-    if latest_rsi < 50:  # 假設條件
-        results.append({"股票代號": symbol, "最新 RSI": round(latest_rsi, 2)})
-
-# 顯示結果表格
-if results:
-    result_df = pd.DataFrame(results)
-    st.dataframe(result_df)
-
-    # 匯出 Excel
-    st.download_button(
-        label="📥 匯出 Excel",
-        data=result_df.to_csv(index=False).encode("utf-8-sig"),
-        file_name="選股結果.csv",
-        mime="text/csv"
-    )
-
-    # 顯示技術圖
-    selected_symbol = st.selectbox("點選股票顯示技術圖", result_df["股票代號"])
-    chart_data = get_stock_data(selected_symbol, start_date, end_date)
-    chart_data = calculate_indicators(chart_data)
-
-    fig, ax = plt.subplots(figsize=(10, 5))
-    ax.plot(chart_data["Close"], label="Close")
-    ax.plot(chart_data["RSI"], label="RSI", linestyle="--")
-    ax.plot(chart_data["MACD"], label="MACD")
-    ax.plot(chart_data["Signal"], label="Signal", linestyle=":")
-    ax.set_title(f"{selected_symbol} 技術圖")
-    ax.legend()
-    st.pyplot(fig)
-else:
-    st.info("目前無符合條件的標的")
+if st.button("開始篩選"):
+    if not symbol_input:
+        st.warning("請輸入股票代號")
+    else:
+        st.subheader("符合條件的標的（示意）")
+        symbols = [s.strip() for s in symbol_input.split(",")]
+        matched = []
+        for symbol in symbols:
+            df = fetch_stock_data(symbol, start_date, end_date)
+            if is_low_base_reversal(df):
+                matched.append(symbol)
+        if matched:
+            st.success("符合條件的標的如下：")
+            st.write(matched)
+            result_df = pd.DataFrame({"符合條件標的": matched})
+            st.download_button("📥 下載結果 Excel", result_df.to_csv(index=False).encode("utf-8"), file_name="selected_stocks.csv")
+        else:
+            st.info("目前無符合條件的標的")
